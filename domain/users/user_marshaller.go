@@ -2,8 +2,7 @@ package users
 
 import "encoding/json"
 
-
-type PuplicUser struct {
+type PublicUser struct {
 	Id          int64  `json:"id"`
 	DateCreated string `json:"date_created"`
 	Status      string `json:"status"`
@@ -29,7 +28,7 @@ func (users Users) Marshall(isPublic bool) interface{} {
 func (user *User) Marshall(isPublic bool) interface{} {
 	if isPublic {
 
-		return PuplicUser{
+		return PublicUser{
 			Id:          user.Id,
 			DateCreated: user.DateCreated,
 			Status:      user.Status,

@@ -3,10 +3,12 @@ package users
 import (
 	//"encoding/json"
 	//"fmt"
+	"fmt"
 	"strconv"
 	//"io/ioutil"
 	"net/http"
 
+	"github.com/Moriartii/bookstore_oauth-go/oauth"
 	"github.com/Moriartii/bookstore_users-api/domain/users"
 	"github.com/Moriartii/bookstore_users-api/services"
 	"github.com/Moriartii/bookstore_users-api/utils/errors"
@@ -67,17 +69,40 @@ func Update(c *gin.Context) {
 }
 
 func Get(c *gin.Context) {
+	if err := oauth.AuthenticateRequest(c.Request); err != nil {
+		c.JSON(err.Status, err)
+		return
+	}
+
+	// if callerID := oauth.GetCallerID(c.Request); callerID == 0 {
+	// 	err := errors.RestErr{
+	// 		Status:  http.StatusUnauthorized,
+	// 		Message: "resource not available",
+	// 	}
+	// 	c.JSON(err.Status, err)
+	// 	return
+	// }
+
+	fmt.Println("**** ЭТАП 1 *****")
 	userId, idErr := getUserId(c.Param("user_id"))
 	if idErr != nil {
 		c.JSON(idErr.Status, idErr)
 		return
 	}
+	fmt.Println("**** ЭТАП 2 *****")
 	user, getErr := services.UsersService.GetUser(userId)
 	if getErr != nil {
 		c.JSON(getErr.Status, getErr)
 		return
 	}
-	c.JSON(http.StatusOK, user.Marshall(c.GetHeader("X-Public") == "true"))
+	fmt.Println("**** ЭТАП 3 user.Id *****", user.Id)
+	fmt.Println("***** CallerID *****", oauth.GetCallerID(c.Request))
+	if oauth.GetCallerID(c.Request) == user.Id {
+		c.JSON(http.StatusOK, user.Marshall(false))
+		return
+	}
+	fmt.Println("**** ЭТАП 4 oauth.IsPublic(c.Request) *****", oauth.IsPublic(c.Request))
+	c.JSON(http.StatusOK, user.Marshall(oauth.IsPublic(c.Request)))
 }
 
 func Create(c *gin.Context) {
@@ -94,21 +119,19 @@ func Create(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusCreated, result.Marshall(c.GetHeader("X-Public") == "true"))
-
-	// fmt.Println(user)
-	// bytes, err := ioutil.ReadAll(c.Request.Body)
-	// if err != nil {
-	// 	//TODO: Handle error
-	// 	return
-	// }
-	// if err := json.Unmarshal(bytes, &user); err != nil {
-	// 	fmt.Println(err.Error())
-	// 	//TODO Handle json error
-	// 	return
-	// }
-
 }
 
-// func SearchUser(c *gin.Context) {
-// 	c.String(http.StatusNotImplemented, "implement me!")
-// }
+func Login(c *gin.Context) {
+	var request users.LoginRequest
+	if err := c.ShouldBindJSON(&request); err != nil {
+		restErr := errors.NewBadRequestError("invalid json body")
+		c.JSON(restErr.Status, restErr)
+		return
+	}
+	user, err := services.UsersService.LoginUser(request)
+	if err != nil {
+		c.JSON(err.Status, err)
+		return
+	}
+	c.JSON(http.StatusOK, user.Marshall(c.GetHeader("X-Public") == "true"))
+}
